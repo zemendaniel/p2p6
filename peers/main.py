@@ -1,14 +1,17 @@
 import receive
 import send
 import os
-
+from pathlib import Path
 from dotenv import load_dotenv
 
 load_dotenv()
 
 PORT = 59031
-API_URL = os.environ.get("API_URL") or "http://[::1]:8000"
-PROD = os.environ.get("PROD") == "1"
+PROD = not bool(os.environ.get("DEV"))
+if PROD:
+    API_URL = "http://p2p6.zemendaniel.hu:8000"
+else:
+    API_URL = os.environ.get("API_URL")
 
 
 def main():
@@ -27,7 +30,7 @@ def main():
     elif decision == "s":
         peer_id = input("Enter the peer ID you received: ")
         if PROD:
-            file_path = input("Enter the path to the file you want to send: ") or os.environ.get("TEST_FILE")
+            file_path = input("Enter the path to the file you want to send: ")
         else:
             file_path = os.environ.get("TEST_FILE")
 
