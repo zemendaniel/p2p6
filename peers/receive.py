@@ -1,3 +1,5 @@
+import time
+
 import requests
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
@@ -47,7 +49,7 @@ class ReceivePeer:
 
     def __start_listening(self):
         self.is_listening = True
-        self.listen_thread = threading.Thread(target=self.__handle_start)
+        self.listen_thread = threading.Thread(target=self.__listening_loop)
         self.listen_thread.start()
 
     def __stop_listening(self):
@@ -60,22 +62,35 @@ class ReceivePeer:
             self.listen_thread.join(timeout=5)
         print("Stopped listening.")
 
-    def __handle_start(self):
+    def __listening_loop(self):
         self.sock = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)
         self.sock.bind(("::", self.port))
         self.sock.listen(1)
         print(f"Listening on port {self.port}...")
         self.conn, self.addr = self.sock.accept()
 
-        while self.is_listening:
-            try:
-                data = self.conn.recv(4096)
-                if not data:
-                    print("[Receiver] Client disconnected")
+        with self.conn:
+            while self.is_listening:
+                try:
+                    data = self.conn.recv(4096)
+                    if not data:
+                        print("[Receiver] Client disconnected")
+                        break
+                    print(f"[Receiver] Received: {data!r}")
+                except ConnectionResetError:
+                    print("[Receiver] Connection reset by peer")
                     break
-                print(f"[Receiver] Received: {data!r}")
-            except ConnectionResetError:
-                print("[Receiver] Connection reset by peer")
-                break
 
-        # todo i was here
+    def __handle_data(self, data):
+        pass
+
+    def __receive_exact(self, length):
+        data = b""
+        while len(data) < length:
+            packet = self.conn.recv(length - len(data))
+            if not packet:
+                return None
+            data += packet
+        return data
+
+
