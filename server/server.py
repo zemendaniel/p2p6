@@ -1,4 +1,3 @@
-from typing import Optional
 import redis.asyncio as redis
 from fastapi import FastAPI, Request, HTTPException
 from pydantic import BaseModel, Field

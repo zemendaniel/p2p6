@@ -8,7 +8,6 @@ from cryptography.hazmat.primitives.asymmetric import padding
 from cryptography.hazmat.primitives.asymmetric.rsa import RSAPublicKey
 from pydantic import BaseModel, ConfigDict
 from cryptography.hazmat.primitives import serialization, hashes
-import queue
 import socket
 import threading
 

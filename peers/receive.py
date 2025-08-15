@@ -1,5 +1,4 @@
 import os.path
-import time
 import shared
 import requests
 from cryptography.fernet import Fernet

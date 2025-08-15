@@ -1,1 +1,5 @@
+Chunking
 Have the receiver send a password to the sender via the API and confirm it later
+Encrypt everything (send message function)
+Replay protecion (timestamps)
+Server rate limiting
