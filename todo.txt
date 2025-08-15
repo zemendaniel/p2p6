@@ -1,0 +1,1 @@
+Have the receiver send a password to the sender via the API and confirm it later

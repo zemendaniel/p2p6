@@ -1,5 +1,6 @@
+import os.path
 import time
-
+import shared
 import requests
 from cryptography.fernet import Fernet
 from cryptography.hazmat.primitives import serialization, hashes
@@ -18,13 +19,16 @@ class SenderMetadata(BaseModel):
 
 
 class ReceivePeer:
-    def __init__(self, friendly_name: str, api_url: str, port):
+    def __init__(self, friendly_name: str, save_path: str, api_url: str, port: int):
         self.friendly_name = friendly_name
         self.api_url = api_url
         self.private_key, self.public_key = ReceivePeer.__generate_rsa_pair()
         self.peer_id = self.__register()
+        print(f"Your peer ID is: {self.peer_id}\nSend this ID to the person who will send you the file.")
         self.port = port
+        self.save_path = save_path
 
+        self.full_file_path = None
         self.sock = None
         self.is_listening = False
         self.conn = None
@@ -89,8 +93,18 @@ class ReceivePeer:
                         command = payload.decode()
                         match command:
                             case "done":
-                                # todo validate the file hash
                                 self.is_listening = False
+                                received_file_hash = shared.compute_file_hash(self.full_file_path)
+                                if self.sender_metadata.file_hash == received_file_hash:
+                                    print(f"File integrity confirmed ({self.full_file_path}).")
+                                else:
+                                    decision = input("WARNING: File integrity could not be confirmed. Do you want to delete the file? (y/n) ")
+                                    if decision == "y":
+                                        os.remove(self.full_file_path)
+                                        print(f"File {self.full_file_path} deleted.")
+                                    elif decision == "n":
+                                        print("You have successfully received the file.")
+                                break
 
                     case "key":
                         if self.aes_key:
@@ -112,20 +126,20 @@ class ReceivePeer:
                         decrypted_bytes = self.fernet.decrypt(payload)
                         metadata = json.loads(decrypted_bytes.decode())
                         self.sender_metadata = SenderMetadata(**metadata)
-                        print(f"{self.sender_metadata.friendly_name} wants to send you a file: {self.sender_metadata.filename}.")
+                        print(f"{self.sender_metadata.friendly_name} wants to send you a file: {self.sender_metadata.filename} ({self.sender_metadata.file_size} bytes).")
                         # todo accept or reject
+                        self.full_file_path = os.path.join(self.save_path, self.sender_metadata.filename)
 
                     case "file":
+                        # todo chunking and progress
                         decrypted_data = self.fernet.decrypt(payload)
-                        with open(self.sender_metadata.filename, "wb") as f:
+                        with open(self.full_file_path, "wb") as f:
                             f.write(decrypted_data)
 
             if self.conn:
                 self.conn.close()
             if self.sock:
                 self.sock.close()
-
-            print("You have successfully received the file.")
 
     def __handle_data(self, data):
         pass

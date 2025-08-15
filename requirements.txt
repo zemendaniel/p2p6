@@ -1,0 +1,6 @@
+cryptography
+fastapi
+pydantic
+uvicorn
+redis
+requests

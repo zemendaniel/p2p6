@@ -1,4 +1,4 @@
-from hashlib import sha256
+import shared
 import os
 import json
 import requests
@@ -59,7 +59,7 @@ class SendPeer:
     def __construct_metadata(self):
         file_size = os.path.getsize(self.file_path)
         filename = os.path.basename(self.file_path)
-        file_hash = self.__compute_file_hash()
+        file_hash = shared.compute_file_hash(self.file_path)
 
         metadata = {
             "filename": filename,
@@ -70,13 +70,6 @@ class SendPeer:
         metadata_bytes = json.dumps(metadata).encode()
         encrypted_metadata = self.fernet.encrypt(metadata_bytes)
         return encrypted_metadata
-
-    def __compute_file_hash(self):
-        hasher = sha256()
-        with open(self.file_path, "rb") as f:
-            for chunk in iter(lambda: f.read(8192), b""):
-                hasher.update(chunk)
-        return hasher.hexdigest()
 
     def __start_sending(self):
         # self.is_sending = True
