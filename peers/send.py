@@ -34,8 +34,8 @@ class SendPeer:
         self.receiver_peer: PeerData = self.__get_peer_data()
 
         self.sock = None
-        self.send_queue = queue.Queue()
-        self.is_sending = False
+        # self.send_queue = queue.Queue()
+        # self.is_sending = False
         self.send_thread = None
         self.conn = None
 
@@ -79,21 +79,20 @@ class SendPeer:
         return hasher.hexdigest()
 
     def __start_sending(self):
-        self.is_sending = True
+        # self.is_sending = True
         self.send_thread = threading.Thread(target=self.__start_send_thread)
         self.send_thread.start()
 
-    def __stop_sending(self):
-        self.is_sending = False
-        if self.sock:
-            self.sock.close()
-        if self.conn:
-            self.conn.close()
-        if self.send_queue:
-            self.send_queue.empty()
-        if self.send_thread:
-            self.send_thread.join(timeout=5)
-        print("You have successfully transferred the file.")
+    # def __stop_sending(self):
+    #     # self.is_sending = False
+    #     if self.sock:
+    #         self.sock.close()
+    #     if self.conn:
+    #         self.conn.close()
+    #     if self.send_queue:
+    #         self.send_queue.empty()
+    #     if self.send_thread:
+    #         self.send_thread.join(timeout=5)
 
     def __send_message(self, msg_type, data_bytes):
         header = f"{msg_type}|{len(data_bytes)}\n".encode()
@@ -124,4 +123,10 @@ class SendPeer:
 
             self.__send_message("ctrl", b"done")
 
-            # todo stop gracefully
+            if self.conn:
+                self.conn.close()
+            if self.sock:
+                self.sock.close()
+
+            print("You have successfully transferred the file.")
+

@@ -34,6 +34,7 @@ class ReceivePeer:
         self.fernet = None
 
         self.__start_listening()
+        print(f"You are now listening for incoming connections.")
 
     @staticmethod
     def __generate_rsa_pair():
@@ -65,21 +66,10 @@ class ReceivePeer:
         self.listen_thread = threading.Thread(target=self.__listening_loop)
         self.listen_thread.start()
 
-    def __stop_listening(self):
-        self.is_listening = False
-        if self.sock:
-            self.sock.close()
-        if self.conn:
-            self.conn.close()
-        if self.listen_thread:
-            self.listen_thread.join(timeout=5)
-        print("Stopped listening.")
-
     def __listening_loop(self):
         self.sock = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)
         self.sock.bind(("::", self.port))
         self.sock.listen(1)
-        # print(f"Listening on port {self.port}...")
         self.conn, self.addr = self.sock.accept()
 
         with self.conn:
@@ -96,12 +86,11 @@ class ReceivePeer:
 
                 match msg_type:
                     case "ctrl":
-                        print(f"[Receiver] Received control message: {payload.decode()}")
                         command = payload.decode()
-                        if command == "done":
-                            # todo validate the file hash
-                            self.__stop_listening()
-                            # todo graceful stop
+                        match command:
+                            case "done":
+                                # todo validate the file hash
+                                self.is_listening = False
 
                     case "key":
                         if self.aes_key:
@@ -130,6 +119,13 @@ class ReceivePeer:
                         decrypted_data = self.fernet.decrypt(payload)
                         with open(self.sender_metadata.filename, "wb") as f:
                             f.write(decrypted_data)
+
+            if self.conn:
+                self.conn.close()
+            if self.sock:
+                self.sock.close()
+
+            print("You have successfully received the file.")
 
     def __handle_data(self, data):
         pass
