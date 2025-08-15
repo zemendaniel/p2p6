@@ -9,7 +9,7 @@ load_dotenv()
 PORT = 59031
 PROD = not bool(os.environ.get("DEV"))
 if PROD:
-    API_URL = "http://p2p6.zemendaniel.hu:8000"
+    API_URL = "https://p2p6.zemendaniel.hu"
 else:
     API_URL = os.environ.get("API_URL")
 
