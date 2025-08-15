@@ -30,7 +30,7 @@ async def register(peer: Peer, request: Request):
         "friendly_name": peer.friendly_name
     }
 
-    await r.set(peer_id, json.dumps(peer_data), ex=5*60)
+    await r.set(peer_id, json.dumps(peer_data), ex=60*60)
 
     return {"peer_id": peer_id}
 

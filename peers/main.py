@@ -14,8 +14,8 @@ def main():
         print(f"Your peer ID is: {peer_id}\nSend this ID to the person who will send you the file.")
     elif decision == "s":
         peer_id = input("Enter the peer ID you received: ")
-        file_path = input("Enter the path to the file you want to send: ")
-        send_peer = send.SendPeer(receiver_peer_id=peer_id, file_path=file_path, api_url="http://[::1]:8000")
+        file_path = input("Enter the path to the file you want to send: ") or r"C:\Users\zemen\PycharmProjects\p2p6\test.txt"
+        send_peer = send.SendPeer(receiver_peer_id=peer_id, file_path=file_path, friendly_name=friendly_name, port=PORT, api_url=API_URL)
 
 
 if __name__ == "__main__":

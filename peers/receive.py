@@ -1,10 +1,11 @@
 import time
 
 import requests
-from cryptography.hazmat.primitives import serialization
-from cryptography.hazmat.primitives.asymmetric import rsa
+from cryptography.hazmat.primitives import serialization, hashes
+from cryptography.hazmat.primitives.asymmetric import rsa, padding
 import threading
 import socket
+import json
 
 
 class ReceivePeer:
@@ -19,6 +20,8 @@ class ReceivePeer:
         self.is_listening = False
         self.conn = None
         self.listen_thread = None
+
+        self.aes_key = None
 
         self.__start_listening()
 
@@ -71,15 +74,63 @@ class ReceivePeer:
 
         with self.conn:
             while self.is_listening:
-                try:
-                    data = self.conn.recv(4096)
-                    if not data:
-                        print("[Receiver] Client disconnected")
-                        break
-                    print(f"[Receiver] Received: {data!r}")
-                except ConnectionResetError:
-                    print("[Receiver] Connection reset by peer")
-                    break
+                header = b""
+                while not header.endswith(b"\n"):
+                    chunk = self.conn.recv(1)
+                    # if not chunk:
+                    #     print("[Receiver] Client disconnected")
+                    #     break
+                    header += chunk
+
+                header = header.decode().strip()
+                print(f"[Receiver] Received header: {header}")
+                msg_type, length_str = header.split("|")
+                length = int(length_str)
+                payload = self.__receive_exact(length)
+                # if payload is None:
+                #     print("[Receiver] Client disconnected")
+                #     break
+
+                match msg_type:
+                    case "ctrl":
+                        print(f"[Receiver] Received control message: {payload.decode()}")
+                    case "key":
+                        aes_key = self.private_key.decrypt(
+                            payload,
+                            padding.OAEP(
+                                mgf=padding.MGF1(algorithm=hashes.SHA256()),
+                                algorithm=hashes.SHA256(),
+                                label=None
+                            )
+                        )
+                        self.aes_key = aes_key
+                        print(f"[Receiver] Received AES key: {aes_key.decode()}")
+
+                    case "metadata":
+                        print(f"[Receiver] Received metadata.")
+                        metadata_bytes = self.private_key.decrypt(
+                            payload,
+                            padding.OAEP(
+                                mgf=padding.MGF1(algorithm=hashes.SHA256()),
+                                algorithm=hashes.SHA256(),
+                                label=None
+                            )
+                        )
+                        metadata = json.loads(metadata_bytes.decode())
+                        print(metadata)
+
+                    case "file":
+                        pass
+
+                # try:
+                #     data = self.conn.recv(4096)
+                #     if not data:
+                #         print("[Receiver] Client disconnected")
+                #         break
+                #     print(f"[Receiver] Received: {data!r}")
+                # except ConnectionResetError:
+                #     print("[Receiver] Connection reset by peer")
+                #     break
 
     def __handle_data(self, data):
         pass
