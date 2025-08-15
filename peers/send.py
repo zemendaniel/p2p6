@@ -30,8 +30,8 @@ class SendPeer:
         self.port = port
 
         self.aes_key = Fernet.generate_key()
+        self.fernet = Fernet(self.aes_key)
         self.receiver_peer: PeerData = self.__get_peer_data()
-        print(f"You are connecting to: {self.receiver_peer.friendly_name}")
 
         self.sock = None
         self.send_queue = queue.Queue()
@@ -40,7 +40,6 @@ class SendPeer:
         self.conn = None
 
         self.__start_sending()
-
 
     def __get_peer_data(self):
         resp = requests.get(f"{self.api_url}/peers/{self.receiver_peer_id}")
@@ -65,21 +64,11 @@ class SendPeer:
         metadata = {
             "filename": filename,
             "file_size": file_size,
-            "aes_key": self.aes_key.decode(),
             "friendly_name": self.friendly_name,
             "file_hash": file_hash
         }
         metadata_bytes = json.dumps(metadata).encode()
-
-        encrypted_metadata = self.receiver_peer.public_key.encrypt(
-            metadata_bytes,
-            padding.OAEP(
-                mgf=padding.MGF1(algorithm=hashes.SHA256()),
-                algorithm=hashes.SHA256(),
-                label=None
-            )
-        )
-
+        encrypted_metadata = self.fernet.encrypt(metadata_bytes)
         return encrypted_metadata
 
     def __compute_file_hash(self):
@@ -104,7 +93,7 @@ class SendPeer:
             self.send_queue.empty()
         if self.send_thread:
             self.send_thread.join(timeout=5)
-        print("Stopped sending.")
+        print("You have successfully transferred the file.")
 
     def __send_message(self, msg_type, data_bytes):
         header = f"{msg_type}|{len(data_bytes)}\n".encode()
@@ -114,10 +103,8 @@ class SendPeer:
         self.sock = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)
         with self.sock:
             self.sock.connect((self.receiver_peer.ip, self.port))
-            print(f"Connected to {self.receiver_peer.friendly_name}.")
+            print(f"You have connected to: {self.receiver_peer.friendly_name}.")
 
-            #metadata = self.__construct_metadata()
-            #self.__send_message("metadata", metadata)
             encrypted_aes_key = self.receiver_peer.public_key.encrypt(
                 self.aes_key,
                 padding.OAEP(
@@ -127,9 +114,14 @@ class SendPeer:
                 )
             )
             self.__send_message("key", encrypted_aes_key)
-            print(self.aes_key.decode())
-            while True:
-                pass
+            metadata = self.__construct_metadata()
+            self.__send_message("metadata", metadata)
 
+            with open(self.file_path, "rb") as f:
+                data = f.read()
+                encrypted_data = self.fernet.encrypt(data)
+                self.__send_message("file", encrypted_data)
 
+            self.__send_message("ctrl", b"done")
 
+            # todo stop gracefully

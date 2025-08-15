@@ -1,11 +1,20 @@
 import time
 
 import requests
+from cryptography.fernet import Fernet
 from cryptography.hazmat.primitives import serialization, hashes
 from cryptography.hazmat.primitives.asymmetric import rsa, padding
 import threading
 import socket
 import json
+from pydantic import BaseModel
+
+
+class SenderMetadata(BaseModel):
+    filename: str
+    file_size: int
+    friendly_name: str
+    file_hash: str
 
 
 class ReceivePeer:
@@ -20,8 +29,9 @@ class ReceivePeer:
         self.is_listening = False
         self.conn = None
         self.listen_thread = None
-
+        self.sender_metadata = None
         self.aes_key = None
+        self.fernet = None
 
         self.__start_listening()
 
@@ -69,32 +79,33 @@ class ReceivePeer:
         self.sock = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)
         self.sock.bind(("::", self.port))
         self.sock.listen(1)
-        print(f"Listening on port {self.port}...")
+        # print(f"Listening on port {self.port}...")
         self.conn, self.addr = self.sock.accept()
 
         with self.conn:
             while self.is_listening:
                 header = b""
                 while not header.endswith(b"\n"):
-                    chunk = self.conn.recv(1)
-                    # if not chunk:
-                    #     print("[Receiver] Client disconnected")
-                    #     break
+                    chunk = self.conn.recv(1)   # todo what if no chunk
                     header += chunk
 
                 header = header.decode().strip()
-                print(f"[Receiver] Received header: {header}")
                 msg_type, length_str = header.split("|")
                 length = int(length_str)
-                payload = self.__receive_exact(length)
-                # if payload is None:
-                #     print("[Receiver] Client disconnected")
-                #     break
+                payload = self.__receive_exact(length)  # todo what if no payload
 
                 match msg_type:
                     case "ctrl":
                         print(f"[Receiver] Received control message: {payload.decode()}")
+                        command = payload.decode()
+                        if command == "done":
+                            # todo validate the file hash
+                            self.__stop_listening()
+                            # todo graceful stop
+
                     case "key":
+                        if self.aes_key:
+                            continue
                         aes_key = self.private_key.decrypt(
                             payload,
                             padding.OAEP(
@@ -104,33 +115,21 @@ class ReceivePeer:
                             )
                         )
                         self.aes_key = aes_key
-                        print(f"[Receiver] Received AES key: {aes_key.decode()}")
+                        self.fernet = Fernet(aes_key)
 
                     case "metadata":
-                        print(f"[Receiver] Received metadata.")
-                        metadata_bytes = self.private_key.decrypt(
-                            payload,
-                            padding.OAEP(
-                                mgf=padding.MGF1(algorithm=hashes.SHA256()),
-                                algorithm=hashes.SHA256(),
-                                label=None
-                            )
-                        )
-                        metadata = json.loads(metadata_bytes.decode())
-                        print(metadata)
+                        if self.sender_metadata:
+                            continue
+                        decrypted_bytes = self.fernet.decrypt(payload)
+                        metadata = json.loads(decrypted_bytes.decode())
+                        self.sender_metadata = SenderMetadata(**metadata)
+                        print(f"{self.sender_metadata.friendly_name} wants to send you a file: {self.sender_metadata.filename}.")
+                        # todo accept or reject
 
                     case "file":
-                        pass
-
-                # try:
-                #     data = self.conn.recv(4096)
-                #     if not data:
-                #         print("[Receiver] Client disconnected")
-                #         break
-                #     print(f"[Receiver] Received: {data!r}")
-                # except ConnectionResetError:
-                #     print("[Receiver] Connection reset by peer")
-                #     break
+                        decrypted_data = self.fernet.decrypt(payload)
+                        with open(self.sender_metadata.filename, "wb") as f:
+                            f.write(decrypted_data)
 
     def __handle_data(self, data):
         pass
